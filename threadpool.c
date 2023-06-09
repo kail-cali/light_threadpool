@@ -78,7 +78,9 @@ typedef struct Cluster{
 
 /*********************************************************************************/
 
-static int set_event_loop(Cluster* cluster){
+static int set_event_loop(Cluster* cluster, int* event_loop_fd){
+
+    
 
 
     return 0;
@@ -130,11 +132,6 @@ static int job_queue_init(Cluster* cluster, JobQueue* job_queue){
 
     cluster -> schedule_fd = (int* )malloc(2* sizeof(int));
     pipe(cluster -> schedule_fd);
-    struct epoll_event register_ ;
-    register_.events = EPOLLIN | EPOLLET;
-    register_.data.fd = cluster -> schedule_fd[0];  // read 
-    
-
     
     if (add_event(cluster->schedule_event_fd, cluster->schedule_fd[0], EPOLLIN | EPOLLET) < 0){
         err("set scheudle event loop failed \n ");
@@ -149,6 +146,43 @@ static int job_queue_init(Cluster* cluster, JobQueue* job_queue){
 
     return 0;
 }
+
+
+static void push_back(JobQueue* job_queue, Job* new_job){
+
+    pthread_mutex_lock(&job_queue -> rxmutex);
+    new_job -> prev = NULL;
+
+    if ( job_queue -> len ==0 ){
+        job_queue -> front = new_job;
+        job_queue -> rear = new_job;
+    }
+    else if (job_queue -> len >=1){
+        job_queue -> rear -> prev = new_job; // link
+        job_queue -> rear = new_job; // change rear pointer to new_job
+    }
+    job_queue -> len ++ ;
+
+    pthread_mutex_unlock(&job_queue -> rxmutex);
+    
+}
+
+static struct Job* pop_front(JobQueue* job_queue){
+    pthread_mutex_lock(&job_queue -> rxmutex);
+    Job* front = job_queue -> front;
+    if (job_queue -> len == 1){
+        job_queue -> len = 0;
+        job_queue -> front = NULL;
+        job_queue-> rear  = NULL;
+    }
+    else if (job_queue -> len >=2){
+        job_queue -> front = front -> prev;
+        job_queue -> len --;
+    }
+    pthread_mutex_unlock(&job_queue -> rxmutex);
+    return front;
+}
+
 
 
 
